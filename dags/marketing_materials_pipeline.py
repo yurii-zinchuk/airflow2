@@ -8,7 +8,7 @@ import requests
 
 default_args = {
     'owner': 'airflow',
-    'start_date': datetime(2023, 12, 13),
+    'start_date': datetime(2023, 12, 10),
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
 }
@@ -55,13 +55,13 @@ def make_brandfetch_api_request(domain):
 
 def deduplication(**kwargs):
     enriched_data = kwargs['ti'].xcom_pull(key='enriched_data', task_ids='data_enrichment_task')
-    pg_hook = PostgresHook(postgres_conn_id='your_postgres_conn_id')
+    pg_hook = PostgresHook(postgres_conn_id='postgres_conn_id')
     conn = pg_hook.get_conn()
     cursor = conn.cursor()
 
     deduplicated_data = []
     for data in enriched_data:
-        cursor.execute("SELECT count(*) FROM your_table_name WHERE domain = %s", (data['domain'],))
+        cursor.execute("SELECT count(*) FROM companies WHERE domain = %s", (data['domain'],))
         result = cursor.fetchone()
         if result[0] == 0:
             deduplicated_data.append(
@@ -77,16 +77,16 @@ def deduplication(**kwargs):
 
 def insertion_update(**kwargs):
     deduplicated_data = kwargs['ti'].xcom_pull(key='deduplicated_data', task_ids='deduplication_task')
-    pg_hook = PostgresHook(postgres_conn_id='your_postgres_conn_id')
+    pg_hook = PostgresHook(postgres_conn_id='postgres_conn_id')
     conn = pg_hook.get_conn()
     cursor = conn.cursor()
 
     for data in deduplicated_data:
         if data['action'] == 'insert':
-            insert_query = "INSERT INTO your_table_name (domain, additional_info) VALUES (%s, %s)"
+            insert_query = "INSERT INTO companies (domain, additional_info) VALUES (%s, %s)"
             cursor.execute(insert_query, (data['domain'], data['additional_info']))
         elif data['action'] == 'update':
-            update_query = "UPDATE your_table_name SET additional_info = %s WHERE domain = %s"
+            update_query = "UPDATE companies SET additional_info = %s WHERE domain = %s"
             cursor.execute(update_query, (data['additional_info'], data['domain']))
 
     conn.commit()
